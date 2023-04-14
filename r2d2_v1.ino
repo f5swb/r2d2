@@ -2,7 +2,7 @@
 #include "SevenSegmentTM1637.h" // https://github.com/bremme/arduino-tm1637
 #include "SevenSegmentExtended.h" // idem au dessus
 #include "SevenSegmentFun.h" // idem au dessus
-//#include "RTClib.h" /https://github.com/adafruit/RTClib
+#include "RTClib.h" /https://github.com/adafruit/RTClib
 #include "SoftwareSerial.h" // https://github.com/PaulStoffregen/SoftwareSerial
 #include "DFRobotDFPlayerMini.h" //https://wiki.dfrobot.com/DFPlayer_Mini_SKU_DFR0299#target_6 NOTE: The order you copy the mp3 into micro SD card will affect the order mp3 played , which means play(1) function will play the first mp3 copied into micro SD card. 
 
