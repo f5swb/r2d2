@@ -1,0 +1,340 @@
+/* R2D2 - Arduino nano @F5SWB 2023 / Version 1.6 - 19/04/2023
+Sur une idée de https://jeje-linge.fr/pages/r2d2-bundle
+Fichiers STL et instructions : https://www.cgtrader.com/3d-print-models/miniatures/figurines/r2d2-hq-print-3d-new-hope-42cm 
+Print à 55% de la taille d'origine Slicer Cura avec CR6SE en 0.12mm
+DS3231 : https://www.amazon.fr/dp/B077XN4LL4?psc=1&ref=ppx_yo2ov_dt_b_product_details
+TM1637 : https://www.amazon.fr/Module-daffichage-0-56-pouce-TM1637/dp/B09LVFN1FR/ref=sr_1_1?__mk_fr_FR=%C3%85M%C3%85%C5%BD%C3%95%C3%91&crid=ZT0N4OWICIHR&keywords=TM1637%2BBlue&qid=1681577634&s=industrial&sprefix=tm1637%2Bblue%2Cindustrial%2C73&sr=1-1&th=1
+RTC DS3231 : https://www.amazon.fr/dp/B077XN4LL4?psc=1&ref=ppx_yo2ov_dt_b_product_details
+PIR HCS-SR505 : https://www.amazon.fr/dp/B07MY2TYC3?psc=1&ref=ppx_yo2ov_dt_b_product_details
+Mini MP3 DFPlayer : https://www.amazon.fr/dp/B07X2CZZDJ?psc=1&ref=ppx_yo2ov_dt_b_product_details
+*/
+
+//// Librairies
+#include "SevenSegmentTM1637.h" // https://github.com/bremme/arduino-tm1637
+#include "SevenSegmentExtended.h" // idem au dessus
+#include "SevenSegmentFun.h" // idem au dessus
+#include "RTClib.h" //https://github.com/adafruit/RTClib
+#include "SoftwareSerial.h" // https://github.com/PaulStoffregen/SoftwareSerial
+#include "DFRobotDFPlayerMini.h" //https://wiki.dfrobot.com/DFPlayer_Mini_SKU_DFR0299#target_6 NOTE: The order you copy the mp3 into micro SD card will affect the order mp3 played , which means play(1) function will play the first mp3 copied into micro SD card. 
+
+//// Module PIR 
+const int PIN_TO_SENSOR=2;   // the pin that OUTPUT pin of sensor is connected to
+
+//// Module MP3
+static const uint8_t PIN_MP3_TX = 6;  
+static const uint8_t PIN_MP3_RX = 7; 
+SoftwareSerial softwareSerial(PIN_MP3_RX, PIN_MP3_TX);
+DFRobotDFPlayerMini player;
+
+//// Afficheur TM1637
+const byte PIN_CLK_Screen=A1;   // CLK pin 
+const byte PIN_DIO_Screen=8; // DIO pin
+SevenSegmentFun TM1637(PIN_CLK_Screen, PIN_DIO_Screen);
+RTC_DS3231 rtc;
+int backlight=30; // Luminosité TM1637
+byte repeats=2;
+
+ ///// bouttons 
+  int buttonPinHour=11; // Heure +
+  int buttonPinMin=12; // Min + 
+
+//// variables année mois date heure 
+int yearupg;
+int monthupg;
+int dayupg;
+int hourupg;
+int minupg;
+int secupg;
+long lastShowTime=0;  
+int showTime=1000 ;// Delay affichage Heure -> millis
+int nb_detect=0;
+long lastShowPir =0;
+int showPir=10000 ;// Delay détection PIR  -> millis
+int temp;
+ 
+void setup() {
+// initialisation du port série @9600 bauds   
+  Serial.begin(9600);
+  softwareSerial.begin(9600);          
+
+// Module PIR
+  pinMode(PIN_TO_SENSOR, INPUT);   
+ 
+// TM1637  
+  pinMode(PIN_CLK_Screen, OUTPUT);
+  pinMode(PIN_DIO_Screen, OUTPUT);
+
+///²/ buttons 
+  pinMode(buttonPinHour,INPUT);
+  digitalWrite(buttonPinHour,HIGH);
+  pinMode(buttonPinMin,INPUT);
+  digitalWrite(buttonPinMin,HIGH);
+ 
+ 
+  // initialisation du TM1637 - MP3 Player - séquence de boot 
+  TM1637.begin();               
+  TM1637.setBacklight(backlight);
+  TM1637.clear();  
+  TM1637.scrollingText("r2d2 r2d2", repeats);
+  player.begin(softwareSerial);
+  player.volume(14);
+  TM1637.print("r2d2");
+  player.play(23);  
+  delay(5000); 
+  
+// initialisation du module RTC      
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");   
+  } 
+
+   //Memorisation en dur de la date et l'heure : 18:03:30 02/04/2023   
+   //rtc.adjust(DateTime(2023, 4, 15, 18, 30, 30)); 
+}
+
+
+void loop() {
+
+//// Update heure minutes      
+    DateTime now = rtc.now();
+    hourupg=now.hour();
+    minupg=now.minute();
+ // yearupg=now.year();
+ // monthupg=now.month();
+ // dayupg=now.day();
+    secupg=now.second();
+   // Serial.print("Temperature: ");
+   // Serial.print(rtc.getTemperature());
+   // Serial.println(" C");
+  //  TM1637.print(rtc.getTemperature());
+  //  delay(3000);
+ 
+      
+////Boucle millis 1 seconde affichage de l'écran  
+    if(abs(millis() - lastShowTime) > showTime){
+        TM1637.printTime(hourupg, minupg, true);
+        lastShowTime = millis();   
+    }
+
+////Boucle millis 10 secondes détection PIR
+    if(abs(millis() - lastShowPir) > showPir){
+        if (digitalRead(PIN_TO_SENSOR) == HIGH) {
+            nb_detect++;              
+            Serial.println("Motion detected!");
+            Serial.print("Nb detect = "); Serial.println(nb_detect);
+            TM1637.print("r2d2");
+            if(nb_detect<4) {
+            blink();
+            blink();                                                
+            }
+            else 
+            if(nb_detect=4) {
+                player.play(random(23,68));
+                TM1637.scrollingText("r2d2 r2d2", repeats);
+                Serial.print("Nb detect = "); Serial.println(nb_detect);
+                player.play(random(23,68));
+                nb_detect=0;
+                Serial.print("RAZ Nb detect = "); Serial.println(nb_detect);           
+            }
+        }    
+        else     
+        if (digitalRead(PIN_TO_SENSOR) == LOW) {   
+        Serial.println("Motion stopped!");        
+        Serial.print("Nb detect = "); Serial.println(nb_detect);         
+      }    
+     lastShowPir = millis();   
+    }
+    
+
+   
+////  Fonctions
+     hourupdate();
+     minupdate(); 
+     annoncevocale();
+    //debug();  
+    //mp3_debug();
+}
+
+
+//// Fonction boutons 
+void hourupdate() { // Bouton heure    
+    if(digitalRead(buttonPinHour)==0) {
+          hourupg++;
+          if(hourupg>23)hourupg=0;
+          rtc.adjust(DateTime(yearupg, monthupg, dayupg, hourupg, minupg, secupg));
+          TM1637.printTime(hourupg, minupg, true);
+    }               
+}
+
+void minupdate() {   // Bouton minute    
+     if(digitalRead(buttonPinMin)==0) {
+         minupg++;
+         if(minupg>59)minupg=0;
+         secupg=00;
+         rtc.adjust(DateTime(yearupg, monthupg, dayupg, hourupg, minupg, secupg));
+         TM1637.printTime(hourupg, minupg, true);
+    }
+}
+
+//// Fonction annonce heure conditions 
+void annoncevocale() { 
+   if(hourupg==07 && minupg==00 && secupg==00){      
+      player.play(1);  
+   }
+   if(hourupg==07 && minupg==30 && secupg==00){
+      player.play(2);  
+   } 
+   if(hourupg==8 && minupg==00 && secupg==00){
+      player.play(3); 
+   }
+   if(hourupg==8 && minupg==30 && secupg==00){
+      player.play(4); 
+   }
+   if(hourupg==9 && minupg==00 && secupg==00){
+      player.play(5);  
+   }  
+   if(hourupg==9 && minupg==30 && secupg==00){
+      player.play(6);  
+   }
+   if(hourupg==10 && minupg==00 && secupg==00){ 
+      player.play(7); 
+   } 
+   if(hourupg==10 && minupg==30 && secupg==00){ 
+      player.play(8);      
+   } 
+   if(hourupg==11 && minupg==00 && secupg==00){ 
+      player.play(9);        
+   }
+   if(hourupg==11 && minupg==30 && secupg==00){ 
+      player.play(10);  
+   }
+   if(hourupg==12 && minupg==00 && secupg==00){ 
+      player.play(11);       
+   }
+   if(hourupg==12 && minupg==30 && secupg==00){
+      player.play(12);       
+   }
+   if(hourupg==13 && minupg==0 && secupg==00){
+      player.play(13);       
+   }
+   if(hourupg==13 && minupg==30 && secupg==00){
+      player.play(14);        
+   }
+   if(hourupg==14 && minupg==00 && secupg==00){
+      player.play(15);        
+   }
+   if(hourupg==14 && minupg==30 && secupg==00){
+      player.play(16);        
+   }
+   if(hourupg==15 && minupg==00 && secupg==00){
+      player.play(17);  
+   }
+   if(hourupg==15 && minupg==30 && secupg==00){
+      player.play(18);  
+   }
+   if(hourupg==16 && minupg==00 && secupg==00){
+      player.play(19);        
+   }
+   if(hourupg==16 && minupg==30 && secupg==00){
+      player.play(20);  
+   }
+   if(hourupg==17 && minupg==00 && secupg==00){
+      player.play(21);  
+   }
+   if(hourupg==17 && minupg==30 && secupg==00){  
+      player.play(22);  
+   }
+}
+
+//// Fonction debug RTC / Update
+void debug() { 
+    DateTime now = rtc.now();
+    hourupg=now.hour();
+    minupg=now.minute();
+    Serial.print("Heure rtc: "); Serial.println(now.hour(), DEC);
+    Serial.print("Heure upgrade: "); Serial.println(hourupg);
+    Serial.print("Minute rtc: "); Serial.println(now.minute(), DEC);
+    Serial.print("Minute upgrade: "); Serial.println(minupg);    
+    delay(1000); 
+}
+
+//// Fonction debug MP3 l'ordre de copie des fichiers affecte l'ordre des fichiers joués,
+//// cela signifie que le fonction play(1) jouera le premier fichier mp3 copié sur la micro SD card. 
+void mp3_debug() { 
+    player.play(1);  
+    Serial.println(" mp3 7 07h00");
+    delay(10000);
+    player.play(2);  
+     Serial.println(" mp3 10 07h30");
+    delay(10000);
+    player.play(3); 
+     Serial.println(" mp3 11 08h00");
+    delay(10000);
+    player.play(4);  
+     Serial.println(" mp3 12 08h30");
+    delay(10000);
+    player.play(5); 
+     Serial.println(" mp3 13 09h00");
+    delay(10000);
+     player.play(6);  
+     Serial.println("mp3 14 09h30");
+    delay(10000);
+    player.play(7);  
+     Serial.println("mp3 4 10h00");
+    delay(10000);
+     player.play(8);  
+     Serial.println("mp3 5 10h30");
+    delay(10000);
+    player.play(9);  
+     Serial.println("mp3 15 11h00");
+   delay(10000);   
+    player.play(10);  
+     Serial.println("mp3 16 11h30");
+    delay(10000);   
+    player.play(11); 
+     Serial.println("mp3 17 12h00");
+    delay(10000);  
+    player.play(12);  
+     Serial.println("mp3 20 12h30");
+    delay(10000);
+    player.play(13);  
+     Serial.println("mp3 21 13h00");
+   delay(10000);  
+    player.play(14);  
+     Serial.println("mp3 22 13h30");
+   delay(10000);
+    player.play(15);  
+     Serial.println("mp3 23 14h00");
+   delay(10000);
+    player.play(16);  
+     Serial.println("mp3 24 14h30");
+   delay(10000);
+     player.play(17);  
+     Serial.println("mp3 25 15h00");
+   delay(10000);
+    player.play(18);  
+     Serial.println("mp3 26 15h30");
+   delay(10000);
+    player.play(19);  
+     Serial.println("mp3 27 16h00");
+  delay(10000);
+    player.play(20);  
+    Serial.println("mp3 200 16h30");
+   delay(10000);  
+    player.play(21);  
+    Serial.println("mp3 2 17h00");
+    delay(10000);  
+     player.play(22);  
+    Serial.println("mp3 3 17h30");
+    delay(10000);  
+ 
+}  
+
+//// Fonction clignotement TM1637
+void blink() { 
+  TM1637.blink();
+  TM1637.setBacklight(backlight);    
+}
