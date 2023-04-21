@@ -13,6 +13,7 @@ volatile int actualPos = 0;    // On commence la Led par une petite valeur
 volatile bool raz_flag = 0;    // Drapeau pour l'action sur le bouton
 int menu = 0;
 int hourupg = 12;
+int minupg = 30;
 
 void setup() {
   Serial.begin(115200);
@@ -55,17 +56,33 @@ void isr(void) {
     bool etatS2 = digitalRead(S2);
     if (etatS1) {                   // Etat HAUT (from LOWtoHIGH) 
       if((etatS1) = (etatS2))       // 
-        //actualPos ++ ;            // Sens HORAIRE        
-        hourupg ++;
+        hourupg ++ ;            // Sens HORAIRE        
         else                          // 
-        //actualPos -- ;            // Sens ANTI-HORAIRE      
-        hourupg --;
+        hourupg -- ;            // Sens ANTI-HORAIRE      
     }
    //Serial.println(actualPos); 
     Serial.print("Heure = "); Serial.println(hourupg);
   }
+  
   lastInterruptTime = interruptTime;
- }   
+ } 
+   if (menu==2)
+   { 
+    if (interruptTime - lastInterruptTime > 5) {    //plus de 5ms, n'est pas un bruit  
+    bool etatS1 = digitalRead(S1);    // lecture des 2 signaux A et B.
+    bool etatS2 = digitalRead(S2);
+    if (etatS1) {                   // Etat HAUT (from LOWtoHIGH) 
+      if((etatS1) = (etatS2))       // 
+         minupg ++ ;            // Sens HORAIRE        
+        else                          // 
+        minupg -- ;            // Sens ANTI-HORAIRE      
+    }
+   //Serial.println(actualPos); 
+    Serial.print("Minutes = "); Serial.println(minupg);
+  }
+  
+  lastInterruptTime = interruptTime;
+ }  
 } 
 
 // **************** Pin Change Interrupt pour Bouton de RAZ *****************
@@ -82,23 +99,15 @@ void isr2(void) {
       {
         hourupg = hourupg + actualPos;
       Serial.print("réglage Heure = + 1 / - 1 "); Serial.println(hourupg);
-      
-     
-       
       }
       if (menu==2)
       {
-     Serial.print("réglage Minute = + 1 / - 1 "); Serial.println(actualPos);
-     if(actualPos>59) {
-      actualPos==0; 
-     }
-        
+     Serial.print("réglage Minute = + 1 / - 1 "); Serial.println(minupg);
       } 
       if (menu==3)
       {
-      Serial.println("Affiche l'heure = ");  
+      Serial.print("Affiche l'heure = "); Serial.print(hourupg);Serial.print(":");Serial.println(minupg);  
       menu = 0;
-     
       } 
     }  
   }
